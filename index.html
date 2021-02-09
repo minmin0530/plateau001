@@ -1,0 +1,2007 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>NVE</title>
+
+        <!-- <link rel="stylesheet" href="css/style.css"> -->        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/106/three.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.1.0/socket.io.js"></script>
+<script type="text/javascript">
+THREE.OrbitControls = function ( object, domElement ) {
+
+this.object = object;
+
+this.domElement = ( domElement !== undefined ) ? domElement : document;
+
+// Set to false to disable this control
+this.enabled = true;
+
+// "target" sets the location of focus, where the object orbits around
+this.target = new THREE.Vector3();
+
+// How far you can dolly in and out ( PerspectiveCamera only )
+this.minDistance = 0;
+this.maxDistance = Infinity;
+
+// How far you can zoom in and out ( OrthographicCamera only )
+this.minZoom = 0;
+this.maxZoom = Infinity;
+
+// How far you can orbit vertically, upper and lower limits.
+// Range is 0 to Math.PI radians.
+this.minPolarAngle = 0; // radians
+this.maxPolarAngle = Math.PI; // radians
+
+// How far you can orbit horizontally, upper and lower limits.
+// If set, must be a sub-interval of the interval [ - Math.PI, Math.PI ].
+this.minAzimuthAngle = - Infinity; // radians
+this.maxAzimuthAngle = Infinity; // radians
+
+// Set to true to enable damping (inertia)
+// If damping is enabled, you must call controls.update() in your animation loop
+this.enableDamping = false;
+this.dampingFactor = 0.25;
+
+// This option actually enables dollying in and out; left as "zoom" for backwards compatibility.
+// Set to false to disable zooming
+this.enableZoom = true;
+this.zoomSpeed = 1.0;
+
+// Set to false to disable rotating
+this.enableRotate = true;
+this.rotateSpeed = 1.0;
+
+// Set to false to disable panning
+this.enablePan = true;
+this.keyPanSpeed = 7.0;	// pixels moved per arrow key push
+
+// Set to true to automatically rotate around the target
+// If auto-rotate is enabled, you must call controls.update() in your animation loop
+this.autoRotate = false;
+this.autoRotateSpeed = 2.0; // 30 seconds per round when fps is 60
+
+// Set to false to disable use of the keys
+this.enableKeys = true;
+
+// The four arrow keys
+this.keys = { LEFT: 37, UP: 38, RIGHT: 39, BOTTOM: 40 };
+
+// Mouse buttons
+this.mouseButtons = { ORBIT: THREE.MOUSE.LEFT, ZOOM: THREE.MOUSE.MIDDLE, PAN: THREE.MOUSE.RIGHT };
+
+// for reset
+this.target0 = this.target.clone();
+this.position0 = this.object.position.clone();
+this.zoom0 = this.object.zoom;
+
+//
+// public methods
+//
+
+this.getPolarAngle = function () {
+
+    return spherical.phi;
+
+};
+
+this.getAzimuthalAngle = function () {
+
+    return spherical.theta;
+
+};
+
+this.saveState = function () {
+
+    scope.target0.copy( scope.target );
+    scope.position0.copy( scope.object.position );
+    scope.zoom0 = scope.object.zoom;
+
+};
+
+this.reset = function () {
+
+    scope.target.copy( scope.target0 );
+    scope.object.position.copy( scope.position0 );
+    scope.object.zoom = scope.zoom0;
+
+    scope.object.updateProjectionMatrix();
+    scope.dispatchEvent( changeEvent );
+
+    scope.update();
+
+    state = STATE.NONE;
+
+};
+
+// this method is exposed, but perhaps it would be better if we can make it private...
+this.update = function () {
+
+    var offset = new THREE.Vector3();
+
+    // so camera.up is the orbit axis
+    var quat = new THREE.Quaternion().setFromUnitVectors( object.up, new THREE.Vector3( 0, 1, 0 ) );
+    var quatInverse = quat.clone().inverse();
+
+    var lastPosition = new THREE.Vector3();
+    var lastQuaternion = new THREE.Quaternion();
+
+    return function update() {
+
+        var position = scope.object.position;
+
+        offset.copy( position ).sub( scope.target );
+
+        // rotate offset to "y-axis-is-up" space
+        offset.applyQuaternion( quat );
+
+        // angle from z-axis around y-axis
+        spherical.setFromVector3( offset );
+
+        if ( scope.autoRotate && state === STATE.NONE ) {
+
+            rotateLeft( getAutoRotationAngle() );
+
+        }
+
+        spherical.theta += sphericalDelta.theta;
+        spherical.phi += sphericalDelta.phi;
+
+        // restrict theta to be between desired limits
+        spherical.theta = Math.max( scope.minAzimuthAngle, Math.min( scope.maxAzimuthAngle, spherical.theta ) );
+
+        // restrict phi to be between desired limits
+        spherical.phi = Math.max( scope.minPolarAngle, Math.min( scope.maxPolarAngle, spherical.phi ) );
+
+        spherical.makeSafe();
+
+
+        spherical.radius *= scale;
+
+        // restrict radius to be between desired limits
+        spherical.radius = Math.max( scope.minDistance, Math.min( scope.maxDistance, spherical.radius ) );
+
+        // move target to panned location
+        scope.target.add( panOffset );
+
+        offset.setFromSpherical( spherical );
+
+        // rotate offset back to "camera-up-vector-is-up" space
+        offset.applyQuaternion( quatInverse );
+
+        position.copy( scope.target ).add( offset );
+
+        scope.object.lookAt( scope.target );
+
+        if ( scope.enableDamping === true ) {
+
+            sphericalDelta.theta *= ( 1 - scope.dampingFactor );
+            sphericalDelta.phi *= ( 1 - scope.dampingFactor );
+
+        } else {
+
+            sphericalDelta.set( 0, 0, 0 );
+
+        }
+
+        scale = 1;
+        panOffset.set( 0, 0, 0 );
+
+        // update condition is:
+        // min(camera displacement, camera rotation in radians)^2 > EPS
+        // using small-angle approximation cos(x/2) = 1 - x^2 / 8
+
+        if ( zoomChanged ||
+            lastPosition.distanceToSquared( scope.object.position ) > EPS ||
+            8 * ( 1 - lastQuaternion.dot( scope.object.quaternion ) ) > EPS ) {
+
+            scope.dispatchEvent( changeEvent );
+
+            lastPosition.copy( scope.object.position );
+            lastQuaternion.copy( scope.object.quaternion );
+            zoomChanged = false;
+
+            return true;
+
+        }
+
+        return false;
+
+    };
+
+}();
+
+this.dispose = function () {
+
+    scope.domElement.removeEventListener( 'contextmenu', onContextMenu, false );
+    scope.domElement.removeEventListener( 'mousedown', onMouseDown, false );
+    scope.domElement.removeEventListener( 'wheel', onMouseWheel, false );
+
+    scope.domElement.removeEventListener( 'touchstart', onTouchStart, false );
+    scope.domElement.removeEventListener( 'touchend', onTouchEnd, false );
+    scope.domElement.removeEventListener( 'touchmove', onTouchMove, false );
+
+    document.removeEventListener( 'mousemove', onMouseMove, false );
+    document.removeEventListener( 'mouseup', onMouseUp, false );
+
+    window.removeEventListener( 'keydown', onKeyDown, false );
+
+    //scope.dispatchEvent( { type: 'dispose' } ); // should this be added here?
+
+};
+
+//
+// internals
+//
+
+var scope = this;
+
+var changeEvent = { type: 'change' };
+var startEvent = { type: 'start' };
+var endEvent = { type: 'end' };
+
+var STATE = { NONE: - 1, ROTATE: 0, DOLLY: 1, PAN: 2, TOUCH_ROTATE: 3, TOUCH_DOLLY: 4, TOUCH_PAN: 5 };
+
+var state = STATE.NONE;
+
+var EPS = 0.000001;
+
+// current position in spherical coordinates
+var spherical = new THREE.Spherical();
+var sphericalDelta = new THREE.Spherical();
+
+var scale = 1;
+var panOffset = new THREE.Vector3();
+var zoomChanged = false;
+
+var rotateStart = new THREE.Vector2();
+var rotateEnd = new THREE.Vector2();
+var rotateDelta = new THREE.Vector2();
+
+var panStart = new THREE.Vector2();
+var panEnd = new THREE.Vector2();
+var panDelta = new THREE.Vector2();
+
+var dollyStart = new THREE.Vector2();
+var dollyEnd = new THREE.Vector2();
+var dollyDelta = new THREE.Vector2();
+
+function getAutoRotationAngle() {
+
+    return 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed;
+
+}
+
+function getZoomScale() {
+
+    return Math.pow( 0.95, scope.zoomSpeed );
+
+}
+
+function rotateLeft( angle ) {
+
+    sphericalDelta.theta -= angle;
+
+}
+
+function rotateUp( angle ) {
+
+    sphericalDelta.phi -= angle;
+
+}
+
+var panLeft = function () {
+
+    var v = new THREE.Vector3();
+
+    return function panLeft( distance, objectMatrix ) {
+
+        v.setFromMatrixColumn( objectMatrix, 0 ); // get X column of objectMatrix
+        v.multiplyScalar( - distance );
+
+        panOffset.add( v );
+
+    };
+
+}();
+
+var panUp = function () {
+
+    var v = new THREE.Vector3();
+
+    return function panUp( distance, objectMatrix ) {
+
+        v.setFromMatrixColumn( objectMatrix, 1 ); // get Y column of objectMatrix
+        v.multiplyScalar( distance );
+
+        panOffset.add( v );
+
+    };
+
+}();
+
+// deltaX and deltaY are in pixels; right and down are positive
+var pan = function () {
+
+    var offset = new THREE.Vector3();
+
+    return function pan( deltaX, deltaY ) {
+
+        var element = scope.domElement === document ? scope.domElement.body : scope.domElement;
+
+        if ( scope.object.isPerspectiveCamera ) {
+
+            // perspective
+            var position = scope.object.position;
+            offset.copy( position ).sub( scope.target );
+            var targetDistance = offset.length();
+
+            // half of the fov is center to top of screen
+            targetDistance *= Math.tan( ( scope.object.fov / 2 ) * Math.PI / 180.0 );
+
+            // we actually don't use screenWidth, since perspective camera is fixed to screen height
+            panLeft( 2 * deltaX * targetDistance / element.clientHeight, scope.object.matrix );
+            panUp( 2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix );
+
+        } else if ( scope.object.isOrthographicCamera ) {
+
+            // orthographic
+            panLeft( deltaX * ( scope.object.right - scope.object.left ) / scope.object.zoom / element.clientWidth, scope.object.matrix );
+            panUp( deltaY * ( scope.object.top - scope.object.bottom ) / scope.object.zoom / element.clientHeight, scope.object.matrix );
+
+        } else {
+
+            // camera neither orthographic nor perspective
+            console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - pan disabled.' );
+            scope.enablePan = false;
+
+        }
+
+    };
+
+}();
+
+function dollyIn( dollyScale ) {
+
+    if ( scope.object.isPerspectiveCamera ) {
+
+        scale /= dollyScale;
+
+    } else if ( scope.object.isOrthographicCamera ) {
+
+        scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom * dollyScale ) );
+        scope.object.updateProjectionMatrix();
+        zoomChanged = true;
+
+    } else {
+
+        console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.' );
+        scope.enableZoom = false;
+
+    }
+
+}
+
+function dollyOut( dollyScale ) {
+
+    if ( scope.object.isPerspectiveCamera ) {
+
+        scale *= dollyScale;
+
+    } else if ( scope.object.isOrthographicCamera ) {
+
+        scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom / dollyScale ) );
+        scope.object.updateProjectionMatrix();
+        zoomChanged = true;
+
+    } else {
+
+        console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.' );
+        scope.enableZoom = false;
+
+    }
+
+}
+
+//
+// event callbacks - update the object state
+//
+
+function handleMouseDownRotate( event ) {
+
+    //console.log( 'handleMouseDownRotate' );
+
+    rotateStart.set( event.clientX, event.clientY );
+
+}
+
+function handleMouseDownDolly( event ) {
+
+    //console.log( 'handleMouseDownDolly' );
+
+    dollyStart.set( event.clientX, event.clientY );
+
+}
+
+function handleMouseDownPan( event ) {
+
+    //console.log( 'handleMouseDownPan' );
+
+    panStart.set( event.clientX, event.clientY );
+
+}
+
+function handleMouseMoveRotate( event ) {
+
+    //console.log( 'handleMouseMoveRotate' );
+
+    rotateEnd.set( event.clientX, event.clientY );
+    rotateDelta.subVectors( rotateEnd, rotateStart );
+
+    var element = scope.domElement === document ? scope.domElement.body : scope.domElement;
+
+    // rotating across whole screen goes 360 degrees around
+    rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientWidth * scope.rotateSpeed );
+
+    // rotating up and down along whole screen attempts to go 360, but limited to 180
+    rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight * scope.rotateSpeed );
+
+    rotateStart.copy( rotateEnd );
+
+    scope.update();
+
+}
+
+function handleMouseMoveDolly( event ) {
+
+    //console.log( 'handleMouseMoveDolly' );
+
+    dollyEnd.set( event.clientX, event.clientY );
+
+    dollyDelta.subVectors( dollyEnd, dollyStart );
+
+    if ( dollyDelta.y > 0 ) {
+
+        dollyIn( getZoomScale() );
+
+    } else if ( dollyDelta.y < 0 ) {
+
+        dollyOut( getZoomScale() );
+
+    }
+
+    dollyStart.copy( dollyEnd );
+
+    scope.update();
+
+}
+
+function handleMouseMovePan( event ) {
+
+    //console.log( 'handleMouseMovePan' );
+
+    panEnd.set( event.clientX, event.clientY );
+
+    panDelta.subVectors( panEnd, panStart );
+
+    pan( panDelta.x, panDelta.y );
+
+    panStart.copy( panEnd );
+
+    scope.update();
+
+}
+
+function handleMouseUp( event ) {
+
+    // console.log( 'handleMouseUp' );
+
+}
+
+function handleMouseWheel( event ) {
+
+    // console.log( 'handleMouseWheel' );
+
+    if ( event.deltaY < 0 ) {
+
+        dollyOut( getZoomScale() );
+
+    } else if ( event.deltaY > 0 ) {
+
+        dollyIn( getZoomScale() );
+
+    }
+
+    scope.update();
+
+}
+
+function handleKeyDown( event ) {
+
+    //console.log( 'handleKeyDown' );
+
+    switch ( event.keyCode ) {
+
+        case scope.keys.UP:
+            pan( 0, scope.keyPanSpeed );
+            scope.update();
+            break;
+
+        case scope.keys.BOTTOM:
+            pan( 0, - scope.keyPanSpeed );
+            scope.update();
+            break;
+
+        case scope.keys.LEFT:
+            pan( scope.keyPanSpeed, 0 );
+            scope.update();
+            break;
+
+        case scope.keys.RIGHT:
+            pan( - scope.keyPanSpeed, 0 );
+            scope.update();
+            break;
+
+    }
+
+}
+
+function handleTouchStartRotate( event ) {
+
+    //console.log( 'handleTouchStartRotate' );
+
+    rotateStart.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+}
+
+function handleTouchStartDolly( event ) {
+
+    //console.log( 'handleTouchStartDolly' );
+
+    var dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
+    var dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
+
+    var distance = Math.sqrt( dx * dx + dy * dy );
+
+    dollyStart.set( 0, distance );
+
+}
+
+function handleTouchStartPan( event ) {
+
+    //console.log( 'handleTouchStartPan' );
+
+    panStart.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+}
+
+function handleTouchMoveRotate( event ) {
+
+    //console.log( 'handleTouchMoveRotate' );
+
+    rotateEnd.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+    rotateDelta.subVectors( rotateEnd, rotateStart );
+
+    var element = scope.domElement === document ? scope.domElement.body : scope.domElement;
+
+    // rotating across whole screen goes 360 degrees around
+    rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientWidth * scope.rotateSpeed );
+
+    // rotating up and down along whole screen attempts to go 360, but limited to 180
+    rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight * scope.rotateSpeed );
+
+    rotateStart.copy( rotateEnd );
+
+    scope.update();
+
+}
+
+function handleTouchMoveDolly( event ) {
+
+    //console.log( 'handleTouchMoveDolly' );
+
+    var dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
+    var dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
+
+    var distance = Math.sqrt( dx * dx + dy * dy );
+
+    dollyEnd.set( 0, distance );
+
+    dollyDelta.subVectors( dollyEnd, dollyStart );
+
+    if ( dollyDelta.y > 0 ) {
+
+        dollyOut( getZoomScale() );
+
+    } else if ( dollyDelta.y < 0 ) {
+
+        dollyIn( getZoomScale() );
+
+    }
+
+    dollyStart.copy( dollyEnd );
+
+    scope.update();
+
+}
+
+function handleTouchMovePan( event ) {
+
+    //console.log( 'handleTouchMovePan' );
+
+    panEnd.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+    panDelta.subVectors( panEnd, panStart );
+
+    pan( panDelta.x, panDelta.y );
+
+    panStart.copy( panEnd );
+
+    scope.update();
+
+}
+
+function handleTouchEnd( event ) {
+
+    //console.log( 'handleTouchEnd' );
+
+}
+
+//
+// event handlers - FSM: listen for events and reset state
+//
+
+function onMouseDown( event ) {
+
+    if ( scope.enabled === false ) return;
+
+    event.preventDefault();
+
+    switch ( event.button ) {
+
+        case scope.mouseButtons.ORBIT:
+
+            if ( scope.enableRotate === false ) return;
+
+            handleMouseDownRotate( event );
+
+            state = STATE.ROTATE;
+
+            break;
+
+        case scope.mouseButtons.ZOOM:
+
+            if ( scope.enableZoom === false ) return;
+
+            handleMouseDownDolly( event );
+
+            state = STATE.DOLLY;
+
+            break;
+
+        case scope.mouseButtons.PAN:
+
+            if ( scope.enablePan === false ) return;
+
+            handleMouseDownPan( event );
+
+            state = STATE.PAN;
+
+            break;
+
+    }
+
+    if ( state !== STATE.NONE ) {
+
+        document.addEventListener( 'mousemove', onMouseMove, false );
+        document.addEventListener( 'mouseup', onMouseUp, false );
+
+        scope.dispatchEvent( startEvent );
+
+    }
+
+}
+
+function onMouseMove( event ) {
+
+    if ( scope.enabled === false ) return;
+
+    event.preventDefault();
+
+    switch ( state ) {
+
+        case STATE.ROTATE:
+
+            if ( scope.enableRotate === false ) return;
+
+            handleMouseMoveRotate( event );
+
+            break;
+
+        case STATE.DOLLY:
+
+            if ( scope.enableZoom === false ) return;
+
+            handleMouseMoveDolly( event );
+
+            break;
+
+        case STATE.PAN:
+
+            if ( scope.enablePan === false ) return;
+
+            handleMouseMovePan( event );
+
+            break;
+
+    }
+
+}
+
+function onMouseUp( event ) {
+
+    if ( scope.enabled === false ) return;
+
+    handleMouseUp( event );
+
+    document.removeEventListener( 'mousemove', onMouseMove, false );
+    document.removeEventListener( 'mouseup', onMouseUp, false );
+
+    scope.dispatchEvent( endEvent );
+
+    state = STATE.NONE;
+
+}
+
+function onMouseWheel( event ) {
+
+    if ( scope.enabled === false || scope.enableZoom === false || ( state !== STATE.NONE && state !== STATE.ROTATE ) ) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    handleMouseWheel( event );
+
+    scope.dispatchEvent( startEvent ); // not sure why these are here...
+    scope.dispatchEvent( endEvent );
+
+}
+
+function onKeyDown( event ) {
+
+    if ( scope.enabled === false || scope.enableKeys === false || scope.enablePan === false ) return;
+
+    handleKeyDown( event );
+
+}
+
+function onTouchStart( event ) {
+
+    if ( scope.enabled === false ) return;
+
+    switch ( event.touches.length ) {
+
+        case 1:	// one-fingered touch: rotate
+
+            if ( scope.enableRotate === false ) return;
+
+            handleTouchStartRotate( event );
+
+            state = STATE.TOUCH_ROTATE;
+
+            break;
+
+        case 2:	// two-fingered touch: dolly
+
+            if ( scope.enableZoom === false ) return;
+
+            handleTouchStartDolly( event );
+
+            state = STATE.TOUCH_DOLLY;
+
+            break;
+
+        case 3: // three-fingered touch: pan
+
+            if ( scope.enablePan === false ) return;
+
+            handleTouchStartPan( event );
+
+            state = STATE.TOUCH_PAN;
+
+            break;
+
+        default:
+
+            state = STATE.NONE;
+
+    }
+
+    if ( state !== STATE.NONE ) {
+
+        scope.dispatchEvent( startEvent );
+
+    }
+
+}
+
+function onTouchMove( event ) {
+
+    if ( scope.enabled === false ) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    switch ( event.touches.length ) {
+
+        case 1: // one-fingered touch: rotate
+
+            if ( scope.enableRotate === false ) return;
+            if ( state !== STATE.TOUCH_ROTATE ) return; // is this needed?...
+
+            handleTouchMoveRotate( event );
+
+            break;
+
+        case 2: // two-fingered touch: dolly
+
+            if ( scope.enableZoom === false ) return;
+            if ( state !== STATE.TOUCH_DOLLY ) return; // is this needed?...
+
+            handleTouchMoveDolly( event );
+
+            break;
+
+        case 3: // three-fingered touch: pan
+
+            if ( scope.enablePan === false ) return;
+            if ( state !== STATE.TOUCH_PAN ) return; // is this needed?...
+
+            handleTouchMovePan( event );
+
+            break;
+
+        default:
+
+            state = STATE.NONE;
+
+    }
+
+}
+
+function onTouchEnd( event ) {
+
+    if ( scope.enabled === false ) return;
+
+    handleTouchEnd( event );
+
+    scope.dispatchEvent( endEvent );
+
+    state = STATE.NONE;
+
+}
+
+function onContextMenu( event ) {
+
+    if ( scope.enabled === false ) return;
+
+    event.preventDefault();
+
+}
+
+//
+
+scope.domElement.addEventListener( 'contextmenu', onContextMenu, false );
+
+scope.domElement.addEventListener( 'mousedown', onMouseDown, false );
+scope.domElement.addEventListener( 'wheel', onMouseWheel, false );
+
+scope.domElement.addEventListener( 'touchstart', onTouchStart, false );
+scope.domElement.addEventListener( 'touchend', onTouchEnd, false );
+scope.domElement.addEventListener( 'touchmove', onTouchMove, false );
+
+window.addEventListener( 'keydown', onKeyDown, false );
+
+// force an update at start
+
+this.update();
+
+};
+
+THREE.OrbitControls.prototype = Object.create( THREE.EventDispatcher.prototype );
+THREE.OrbitControls.prototype.constructor = THREE.OrbitControls;
+
+Object.defineProperties( THREE.OrbitControls.prototype, {
+
+center: {
+
+    get: function () {
+
+        console.warn( 'THREE.OrbitControls: .center has been renamed to .target' );
+        return this.target;
+
+    }
+
+},
+
+// backward compatibility
+
+noZoom: {
+
+    get: function () {
+
+        console.warn( 'THREE.OrbitControls: .noZoom has been deprecated. Use .enableZoom instead.' );
+        return ! this.enableZoom;
+
+    },
+
+    set: function ( value ) {
+
+        console.warn( 'THREE.OrbitControls: .noZoom has been deprecated. Use .enableZoom instead.' );
+        this.enableZoom = ! value;
+
+    }
+
+},
+
+noRotate: {
+
+    get: function () {
+
+        console.warn( 'THREE.OrbitControls: .noRotate has been deprecated. Use .enableRotate instead.' );
+        return ! this.enableRotate;
+
+    },
+
+    set: function ( value ) {
+
+        console.warn( 'THREE.OrbitControls: .noRotate has been deprecated. Use .enableRotate instead.' );
+        this.enableRotate = ! value;
+
+    }
+
+},
+
+noPan: {
+
+    get: function () {
+
+        console.warn( 'THREE.OrbitControls: .noPan has been deprecated. Use .enablePan instead.' );
+        return ! this.enablePan;
+
+    },
+
+    set: function ( value ) {
+
+        console.warn( 'THREE.OrbitControls: .noPan has been deprecated. Use .enablePan instead.' );
+        this.enablePan = ! value;
+
+    }
+
+},
+
+noKeys: {
+
+    get: function () {
+
+        console.warn( 'THREE.OrbitControls: .noKeys has been deprecated. Use .enableKeys instead.' );
+        return ! this.enableKeys;
+
+    },
+
+    set: function ( value ) {
+
+        console.warn( 'THREE.OrbitControls: .noKeys has been deprecated. Use .enableKeys instead.' );
+        this.enableKeys = ! value;
+
+    }
+
+},
+
+staticMoving: {
+
+    get: function () {
+
+        console.warn( 'THREE.OrbitControls: .staticMoving has been deprecated. Use .enableDamping instead.' );
+        return ! this.enableDamping;
+
+    },
+
+    set: function ( value ) {
+
+        console.warn( 'THREE.OrbitControls: .staticMoving has been deprecated. Use .enableDamping instead.' );
+        this.enableDamping = ! value;
+
+    }
+
+},
+
+dynamicDampingFactor: {
+
+    get: function () {
+
+        console.warn( 'THREE.OrbitControls: .dynamicDampingFactor has been renamed. Use .dampingFactor instead.' );
+        return this.dampingFactor;
+
+    },
+
+    set: function ( value ) {
+
+        console.warn( 'THREE.OrbitControls: .dynamicDampingFactor has been renamed. Use .dampingFactor instead.' );
+        this.dampingFactor = value;
+
+    }
+
+}
+
+} );
+    
+
+
+
+function checkStatus(res) {
+    if (res.status >= 200 && res.status < 300) {
+      return res
+    } else {
+      const error = new Error(res.statusText);
+      error.response = res;
+      throw error
+    }
+  }
+  
+function parseXML(response) {
+    return response.json().then((stringContainingXMLSource) => {
+        const parser = new DOMParser();
+        const posListArray = [];
+
+        for (let j = 0; j < stringContainingXMLSource.length; j++) {
+        for (let i = 0; i < stringContainingXMLSource[j]['core:CityModel']['core:cityObjectMember'].length; i++) {
+            posListArray.push(stringContainingXMLSource[j]['core:CityModel']['core:cityObjectMember'][i]['bldg:Building'][0]['bldg:lod0RoofEdge'][0]['gml:MultiSurface'][0]['gml:surfaceMember'][0]['gml:Polygon'][0]['gml:exterior'][0]['gml:LinearRing'][0]['gml:posList'][0].split(' '));
+        }
+        }
+
+
+      // 箱を作成
+
+      const size = 50;
+      for (const posList of posListArray) {
+        for (let i = 0; i < posList.length; i += 3) {
+            const x = ((posList[i + 0] * 100) % 3554) * 50000 - 6000;
+            const y = (posList[i + 2] * 20) - 100;
+            const z = ((posList[i + 1] * 100) % 13971) * 50000 - 20000;
+            
+            for (let j = 0; j < y / 50; j++) {
+                var voxel = new THREE.Mesh( cubeGeo, cubeMaterial[cubeMaterial.length - 1] );
+                voxel.position.set(
+                    x - (x % 50) + 25,
+                    j * 50 + 25,
+                    z - (z % 50) + 25
+                );
+                voxel.position.divideScalar( 50 ).floor().multiplyScalar( 50 ).addScalar( 25 );
+                scene.add( voxel );
+                // var edges = new THREE.EdgesGeometory(voxel, 0x000000);
+                var edges = new THREE.EdgesGeometry(cubeGeo);
+                lineBox.push( new THREE.LineSegments( edges, new THREE.LineBasicMaterial({ color: 0x000000 })) );
+                lineBox[lineBox.length - 1].position.set(
+                    x - (x % 50) + 25,
+                    j * 50 + 25,
+                    z - (z % 50) + 25
+                );
+                lineBox[lineBox.length - 1].position.divideScalar( 50 ).floor().multiplyScalar( 50 ).addScalar( 25 );						
+                scene.add(lineBox[lineBox.length - 1]);
+
+                objects.push( voxel );
+
+
+
+
+
+
+
+
+
+
+
+
+
+                // const geometry = new THREE.BoxGeometry(size, size, size);
+                // const material = new THREE.MeshNormalMaterial();
+                // const box = new THREE.Mesh(geometry, material);
+                // box.position.set(
+                //     x - (x % 50) + 25,
+                //     j * 50 + 25,
+                //     z - (z % 50) + 25              
+                // );
+                // scene.add(box);
+            }
+        }
+      }
+
+    });
+}
+
+
+
+
+
+
+      var id = null;
+      var roomid = null;
+      var color = 0xffffff;
+      var connected = false;
+      var players = new Map(); 
+      var socket = io();
+
+      var camera, scene, renderer;
+      var plane;
+      var mouse, raycaster, isShiftDown = false;
+
+      var rollOverMesh, rollOverMaterial;
+      var cubeGeo, cubeMaterial = [];
+      var lineBox = [];
+      var objects = [];
+      var controls2;
+      var clearFlag = 0;
+
+
+
+     function loop() {
+        render();
+        requestAnimationFrame(loop);
+    }
+
+      window.addEventListener('load', init);
+
+			function init() {
+/*
+for (const o of objects) {
+scene.remove(o);
+}
+objects.length = 0;
+objects = [];
+for (const c of cubeMaterial) {
+c.dispose();
+}
+cubeMaterial.length = 0;
+cubeMaterial = [];
+//cubeGeo.dispose();
+for (const l of lineBox) {
+//scene.remove(l);
+}
+//scene.remove(rollOverMesh);
+//rollOverMaterial.dispose();
+*/
+                document.getElementById("message").focus();
+                document.getElementById("message").addEventListener('click', () => {
+                    document.getElementById("message").focus();
+                }, false);
+                document.getElementById("color1").addEventListener('click', () => {
+                    // this.materialIndex = l;
+                    rollOverMesh.material.color.set(document.getElementById("color1").value);
+                    cubeMaterial.push( new THREE.MeshLambertMaterial({ color: document.getElementById("color1").value }) );
+                    color = document.getElementById("color1").value;
+//                    cubeMaterial[cubeMaterial.length - 1].color.set(document.getElementById("color1").value);
+                }, false);
+
+
+                document.getElementById("color2").addEventListener('click', () => {
+				scene.background.set(document.getElementById("color2").value);
+                                render();
+                }, false);
+                document.getElementById("color2").addEventListener('change', () => {
+				scene.background.set(document.getElementById("color2").value);
+                                render();
+                }, false);
+
+
+
+
+
+                document.getElementById("color1").addEventListener('change', () => {
+                    // this.materialIndex = l;
+                    rollOverMesh.material.color.set(document.getElementById("color1").value);
+                    cubeMaterial.push( new THREE.MeshLambertMaterial({ color: document.getElementById("color1").value }) );
+                    color = document.getElementById("color1").value
+//                    cubeMaterial[cubeMaterial.length - 1].color.set(document.getElementById("color1").value);
+                }, false);
+
+
+
+
+				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 200000 );
+				camera.position.set( 500, 800, 3300 );
+				camera.lookAt( 0, 0, 0 );
+
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color( 0xf0f0f0 );
+
+				// roll-over helpers
+
+				var rollOverGeo = new THREE.BoxBufferGeometry( 50, 50, 50 );
+				rollOverMaterial = new THREE.MeshBasicMaterial( { color: 0xff0000, opacity: 0.5, transparent: true } );
+				rollOverMesh = new THREE.Mesh( rollOverGeo, rollOverMaterial );
+				scene.add( rollOverMesh );
+
+				// cubes
+
+				cubeGeo = new THREE.BoxBufferGeometry( 50, 50, 50, 2, 2, 2 );
+//				cubeMaterial = new THREE.MeshLambertMaterial( { color: 0xfeb74c } );
+
+				// grid
+
+				var gridHelper = new THREE.GridHelper( 100000, 2000, "#888888", "#888888");
+				scene.add( gridHelper );
+
+				//
+
+				raycaster = new THREE.Raycaster();
+				mouse = new THREE.Vector2();
+
+				var geometry = new THREE.PlaneBufferGeometry( 100000, 100000 );
+				geometry.rotateX( - Math.PI / 2 );
+
+
+				plane = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial( { visible: false } ) );
+				scene.add( plane );
+
+				objects.push( plane );
+
+                const loader = new THREE.TextureLoader();
+                const texture = loader.load('./assets/img/map.png');
+                // マテリアルにテクスチャーを設定
+                const texmaterial = new THREE.MeshStandardMaterial({
+                    map: texture
+                });
+
+                planeMap = new THREE.Mesh( geometry, texmaterial );
+                planeMap.position.y = -1.0;
+				scene.add( planeMap );
+
+				// lights
+
+				var ambientLight = new THREE.AmbientLight( 0x606060 );
+				scene.add( ambientLight );
+
+				var directionalLight = new THREE.DirectionalLight( 0xffffff );
+				directionalLight.position.set( 1, 0.75, 0.5 ).normalize();
+				scene.add( directionalLight );
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+                renderer.setSize( window.innerWidth, window.innerHeight );
+                
+                controls2 = new THREE.OrbitControls( camera, renderer.domElement )
+                controls2.update();
+				document.body.appendChild( renderer.domElement );
+
+				document.addEventListener( 'mousemove', onDocumentMouseMove, false );
+				document.addEventListener( 'mousedown', onDocumentMouseDown, false );
+				document.addEventListener( 'keydown', onDocumentKeyDown, false );
+				document.addEventListener( 'keyup', onDocumentKeyUp, false );
+
+				//
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+
+
+
+                fetch("/apinum").then( (response) => response.json() ).then( (data) => {
+
+                    let count = 0;
+                    for (const d of data) {
+                            fetch("/api" + d).then(checkStatus)
+                            .then(parseXML)
+                            .catch((error) => {
+                            console.log('request failed', error)
+                            });
+
+                    }
+                });
+
+                fetch("/charanum").then( (response) => response.json() ).then( (data) => {
+
+                    for (let i = 0; i < 3; i++) {
+//                        let j = Math.floor(Math.random() * data.length)
+                            fetch("/chara" + data[  i  ]).then( (res) => res.json() )
+                            .then( (re) => {
+                                addChara(re, i);
+                            })
+                            .catch((error) => {
+                            console.log('request failed', error)
+                            });
+
+                    }
+                });
+
+                loop();
+            }
+
+
+    //   socket.emit('connected', {
+    //       clientID: id,
+    //       position: new THREE.Vector3(0,0,0)
+    //   });
+      
+      socket.on('disconnect', () => {});
+
+      socket.on('getUserId', () => {
+        socket.emit('getUserId', id);
+      });
+      socket.on('connected', data => {
+          id = data.userID;
+          roomid = data.roomID;
+          console.log(id);
+          connected = true;
+
+          color = "#";
+          for (let i = 0; i < 6; ++i) {
+              let c = data.color[i];
+              if (c == 15) {c = "f";}
+              else if (c == 14) {c = "e";}
+              else if (c == 13) {c = "d";}
+              else if (c == 12) {c = "c";}
+              else if (c == 11) {c = "b";}
+              else if (c == 10) {c = "a";}
+              color += '' + c;
+          }
+
+          rollOverMesh.material = new THREE.MeshLambertMaterial({ color: color, opacity: 0.5, transparent: true  });
+          cubeMaterial.push( new THREE.MeshLambertMaterial({ color: color }) );
+          document.getElementById("color1").value = color;
+ 
+        //   data.room.voxel
+          for (const voxel of data.room.voxel) {
+              addVoxel(voxel);
+          }
+
+          message.length = 0;
+          message = [];
+          let messgeUnit = "";
+          for (let j = 0; j < data.room.message.length; ++j) {
+            message.push(data.room.message[j]);
+          }
+          let num = message.length;
+          if (message.length > 20) {
+              num = message.length - 20;
+          } else {
+              num = 0;
+          }
+          for (let i = message.length - 1; i >= num; --i) {
+            messgeUnit += message[i] + "<br>";
+          }
+          
+          document.getElementById("chat").innerHTML = messgeUnit;
+
+      });
+      socket.on('disconnected', data => {
+          let target = players.get(data);
+
+          scene.remove(target.mesh);
+          target.geometry.dispose();
+          target.material.dispose();
+
+          players.delete(data);
+      });
+      socket.on('put', data => {
+          if (data.userID !== id && data.roomID == roomid) {
+              addVoxel(data.voxel);
+          }
+      });
+      socket.on('deleteVoxel', data => {
+        if (data.userID !== id && data.roomID == roomid) {
+            scene.remove(objects[data.index + 1]);
+
+            // cubeMaterial.splice(cubeMaterial.indexOf(intersect.object.material), 1);
+            const index2 = data.index;
+
+            objects.splice(data.index + 1, 1);
+
+            scene.remove(lineBox[index2]);
+
+            lineBox.splice(index2, 1);
+        }
+      });
+
+      socket.on('deleteAll', data => {
+        if (data.userID !== id && data.roomID == roomid) {
+            for (const o of objects) {
+                scene.remove(o);
+            }
+            objects.length = 0;
+            objects = [];
+            for (const l of lineBox) {
+                scene.remove(l);
+            }
+            lineBox.length = 0;
+            lineBox = [];
+
+            objects.push(plane);
+
+        }
+      });
+
+
+      socket.on('updatePosition', data => {
+        if (data.clientID !== id && connected) {
+          updatePosition(data);
+        }
+      });
+socket.on('selectRoom', (data) => {
+ 
+for (const o of objects) {
+scene.remove(o);
+}
+objects.length = 0;
+objects = [];
+for (const c of cubeMaterial) {
+c.dispose();
+}
+cubeMaterial.length = 0;
+cubeMaterial = [];
+
+for (const l of lineBox) {
+scene.remove(l);
+}
+lineBox.length = 0;
+lineBox = [];
+
+    rollOverMesh.position.set(25, 25, 25);
+    rollOverMesh.position.divideScalar(50).floor().multiplyScalar(50).addScalar(25);
+objects.push( plane );
+
+ //      init();
+//        console.log(data);
+        id = data.userID;
+          roomid = data.roomID;
+          console.log(id);
+          connected = true;
+
+          color = "#";
+          for (let i = 0; i < 6; ++i) {
+              let c = data.color[i];
+              if (c == 15) {c = "f";}
+              else if (c == 14) {c = "e";}
+              else if (c == 13) {c = "d";}
+              else if (c == 12) {c = "c";}
+              else if (c == 11) {c = "b";}
+              else if (c == 10) {c = "a";}
+              color += '' + c;
+          }
+
+          rollOverMesh.material = new THREE.MeshLambertMaterial({ color: color, opacity: 0.5, transparent: true  });
+          cubeMaterial.push( new THREE.MeshLambertMaterial({ color: color }) );
+          document.getElementById("color1").value = color;
+        //   data.room.voxel
+          for (const voxel of data.room.voxel) {
+              addVoxel(voxel);
+          }
+
+          message.length = 0;
+          message = [];
+          let messgeUnit = "";
+console.log(data.room);
+          for (let j = 0; j < data.room.message.length; ++j) {
+            message.push(data.room.message[j]);
+          }
+          let num = message.length;
+          if (message.length > 20) {
+              num = message.length - 20;
+          } else {
+              num = 0;
+          }
+          for (let i = message.length - 1; i >= num; --i) {
+            messgeUnit += message[i] + "<br>";
+          }
+          
+          document.getElementById("chat").innerHTML = messgeUnit;
+
+          render();
+      });
+
+      function addUser(data) {
+        const geometry = new THREE.BoxGeometry(50, 50, 50);
+        const material = new THREE.MeshBasicMaterial( { color: 0xff0000, opacity: 0.5, transparent: true } );
+        const box = new THREE.Mesh(geometry, material);
+        scene.add(box);
+        players.set(data.clientID, box);
+      }
+      function addChara(re, indexChara) {
+
+        const color16 = [
+            "#ffffff","#ffffff","#ffffff","#ffffff",
+            "#ffffff","#ffffff","#ffffff","#ffffff",
+            "#ffffff","#ffffff","#ffffff","#ffffff",
+            "#ffffff","#ffffff","#ffffff","#ffffff",
+        ];
+        material16 = [];
+        for (const q of re.voxel ) {
+            let ffffff = '#';
+            const hex6 = [
+            re.material[q.m].r,
+            re.material[q.m].r,
+            re.material[q.m].g,
+            re.material[q.m].g,
+            re.material[q.m].b,
+            re.material[q.m].b
+            ];
+            for (let l = 0; l < 6; ++l) {
+                //const hex = q.material[q.m];
+                const hex = Math.floor(hex6[l] * 15);
+                let f1 = hex;
+                if (hex == 15) {f1 = 'f';}
+                if (hex == 14) {f1 = 'e';}
+                if (hex == 13) {f1 = 'd';}
+                if (hex == 12) {f1 = 'c';}
+                if (hex == 11) {f1 = 'b';}
+                if (hex == 10) {f1 = 'a';}
+    
+                ffffff += f1 + '';
+            }
+            color16[q.m] = ffffff;
+        }
+
+
+        const xx = (indexChara - 1) * 50 * 128;
+        const zz = (indexChara - 1) * 50 * 128;
+
+        for (const v of re.voxel) {
+            const geometry = new THREE.BoxGeometry(50, 50, 50, 2, 2, 2);
+            const material = new THREE.MeshLambertMaterial( { color: color16[v.m] } );
+            const box = new THREE.Mesh(geometry, material);
+            box.position.set(v.x * 50 + xx, v.y * 50, v.z * 50 + zz);
+            box.position.divideScalar( 50 ).floor().multiplyScalar( 50 ).addScalar( 25 );
+            scene.add(box);
+    //        var edges = new THREE.EdgesGeometory(box, 0x000000);
+            var edges = new THREE.EdgesGeometry(geometry);
+            lineBox.push( new THREE.LineSegments( edges, new THREE.LineBasicMaterial({ color: 0x000000 })) );
+            lineBox[lineBox.length - 1].position.set(v.x * 50 + xx, v.y * 50, v.z * 50 + zz);
+            lineBox[lineBox.length - 1].position.divideScalar( 50 ).floor().multiplyScalar( 50 ).addScalar( 25 );
+            scene.add(lineBox[lineBox.length - 1]);
+
+            objects.push( box );
+        }
+      }
+      function addVoxel(data) {
+        const geometry = new THREE.BoxGeometry(50, 50, 50, 2, 2, 2);
+        const material = new THREE.MeshLambertMaterial( { color: data.m } );
+        const box = new THREE.Mesh(geometry, material);
+        box.position.set(data.x * 50, data.y * 50, data.z * 50);
+        box.position.divideScalar( 50 ).floor().multiplyScalar( 50 ).addScalar( 25 );
+        scene.add(box);
+//        var edges = new THREE.EdgesGeometory(box, 0x000000);
+        var edges = new THREE.EdgesGeometry(geometry);
+        lineBox.push( new THREE.LineSegments( edges, new THREE.LineBasicMaterial({ color: 0x000000 })) );
+        lineBox[lineBox.length - 1].position.set(data.x * 50, data.y * 50, data.z * 50);
+        lineBox[lineBox.length - 1].position.divideScalar( 50 ).floor().multiplyScalar( 50 ).addScalar( 25 );
+        scene.add(lineBox[lineBox.length - 1]);
+
+        objects.push( box );
+
+
+      }
+      function updatePosition(data) {
+        let target = players.get(data.clientID);
+        target.position.x = data.position.x;
+        target.position.y = data.position.y;
+        target.position.z = data.position.z;
+      }
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			function onDocumentMouseMove( event ) {
+
+				event.preventDefault();
+
+				mouse.set( ( event.clientX / window.innerWidth ) * 2 - 1, - ( event.clientY / window.innerHeight ) * 2 + 1 );
+
+				raycaster.setFromCamera( mouse, camera );
+
+				var intersects = raycaster.intersectObjects( objects );
+
+				if ( intersects.length > 0 ) {
+
+					var intersect = intersects[ 0 ];
+
+					rollOverMesh.position.copy( intersect.point ).add( intersect.face.normal );
+					rollOverMesh.position.divideScalar( 50 ).floor().multiplyScalar( 50 ).addScalar( 25 );
+        //   socket.emit('updatePosition', {
+        //       clientID: id,
+        //       position: rollOverMesh.position
+        //   });
+
+				}
+
+				render();
+
+			}
+
+			function onDocumentMouseDown( event ) {
+
+				event.preventDefault();
+
+				mouse.set( ( event.clientX / window.innerWidth ) * 2 - 1, - ( event.clientY / window.innerHeight ) * 2 + 1 );
+
+				raycaster.setFromCamera( mouse, camera );
+
+				var intersects = raycaster.intersectObjects( objects );
+
+				if ( intersects.length > 0 ) {
+
+					var intersect = intersects[ 0 ];
+
+					// delete cube
+
+					if ( !isShiftDown ) {
+
+						// if ( intersect.object !== plane ) {
+
+						// 	scene.remove( intersect.object );
+
+						// 	objects.splice( objects.indexOf( intersect.object ), 1 );
+
+						// }
+
+						// create cube
+
+					} else {
+                        if (clearFlag == 2) {
+                            if (intersect.object !== plane) {
+//console.log(intersect.object.material.color.getHexString());
+document.getElementById("color1").value = "#" + intersect.object.material.color.getHexString();
+ rollOverMesh.material.color.set(document.getElementById("color1").value);
+ cubeMaterial.push( new THREE.MeshLambertMaterial({ color: document.getElementById("color1").value }) );
+                            }
+                        } else if (clearFlag == 1) {
+
+                            if (intersect.object !== plane) {
+                                scene.remove(intersect.object);
+
+                                // cubeMaterial.splice(cubeMaterial.indexOf(intersect.object.material), 1);
+                                const index = objects.indexOf(intersect.object) - 1;
+
+                                objects.splice(objects.indexOf(intersect.object), 1);
+
+                                scene.remove(lineBox[index]);
+
+                                lineBox.splice(index, 1);
+
+
+                                socket.emit('deleteVoxel', {
+                                    userID: id,
+                                    roomID: roomid,
+                                    index: index,                                    
+                                });
+
+                            }
+
+                        } else {
+
+                            var voxel = new THREE.Mesh( cubeGeo, cubeMaterial[cubeMaterial.length - 1] );
+                            voxel.position.copy( intersect.point ).add( intersect.face.normal );
+                            voxel.position.divideScalar( 50 ).floor().multiplyScalar( 50 ).addScalar( 25 );
+                            scene.add( voxel );
+                            // var edges = new THREE.EdgesGeometory(voxel, 0x000000);
+                            var edges = new THREE.EdgesGeometry(cubeGeo);
+                            lineBox.push( new THREE.LineSegments( edges, new THREE.LineBasicMaterial({ color: 0x000000 })) );
+                            lineBox[lineBox.length - 1].position.copy( intersect.point ).add( intersect.face.normal );
+                            lineBox[lineBox.length - 1].position.divideScalar( 50 ).floor().multiplyScalar( 50 ).addScalar( 25 );						
+                            scene.add(lineBox[lineBox.length - 1]);
+
+                            objects.push( voxel );
+
+                            socket.emit('put', {
+                                userID: id,
+                                roomID: roomid,
+                                voxel: {
+                                    x: Math.floor( voxel.position.x / 50 ),
+                                    y: Math.floor( voxel.position.y / 50 ),
+                                    z: Math.floor( voxel.position.z / 50 ),
+                                    m: voxel.material.color,
+                                },
+                                
+                            });
+                        }
+					}
+
+					render();
+
+				}
+
+			}
+
+			function onDocumentKeyDown( event ) {
+
+				switch ( event.keyCode ) {
+
+					case 16: isShiftDown = true; break;
+
+				}
+
+			}
+
+			function onDocumentKeyUp( event ) {
+
+				switch ( event.keyCode ) {
+
+					case 16: isShiftDown = false; break;
+
+				}
+
+			}
+
+			function render() {
+                controls2.update();
+				renderer.render( scene, camera );
+
+            }
+
+            function save() {
+                socket.emit("saveRoom", roomid);
+            }
+            function load() {
+                socket.emit("loadRoom", roomid);
+            }
+            function deletePut1() {
+                clearFlag = 0;
+                if (clearFlag == 0) {
+                document.getElementById("spoit").style.background = 'white';
+                    document.getElementById("deletePut1").innerHTML = '設置';
+                    document.getElementById("deletePut1").style.background = 'red';  
+                    document.getElementById("deletePut2").style.background = 'white';
+                } else {
+                    document.getElementById("deletePut2").innerHTML = '削除';
+                    document.getElementById("deletePut2").style.background = 'red';
+                    document.getElementById("deletePut1").style.background = 'white';
+                }
+            }
+            function deletePut2() {
+                clearFlag = 1;
+                if (clearFlag == 0) {
+                    document.getElementById("deletePut1").innerHTML = '設置';
+                    document.getElementById("deletePut1").style.background = 'red';  
+                    document.getElementById("deletePut2").style.background = 'white';
+                } else {
+                document.getElementById("spoit").style.background = 'white';
+                    document.getElementById("deletePut2").innerHTML = '削除';
+                    document.getElementById("deletePut2").style.background = 'red';
+                    document.getElementById("deletePut1").style.background = 'white';
+                }
+            }
+            function spoit() {
+                clearFlag = 2;
+                document.getElementById("spoit").style.background = 'red';
+                document.getElementById("deletePut1").style.background = 'white';
+                document.getElementById("deletePut2").style.background = 'white';
+            }
+            function deleteAll() {
+                for (const o of objects) {
+                    scene.remove(o);
+                }
+                objects.length = 0;
+                objects = [];
+                for (const l of lineBox) {
+                    scene.remove(l);
+                }
+                lineBox.length = 0;
+                lineBox = [];
+
+                socket.emit('deleteAll', {
+                    userID: id,
+                    roomID: roomid,
+                });
+
+                objects.push(plane);
+            }
+            function autoCreate() {
+                deleteAll();
+                for (let x = -3; x < 4 - 1; ++x) {
+                for (let y = 18;  y < 24   ; ++y) {
+                for (let z = -2; z < 4 - 2; ++z) {
+
+                let blackWhiteCount = 0;
+                let mcolor = "#";
+                for (let i = 0; i < 6; ++i) {
+                    let c = Math.floor( Math.random() * 6 );
+                    let c2 = 0;
+
+                    let s = color.substr(i + 1,1);
+                    c2 = s;
+                    if      ("f" == s) { c2 = 15;}
+                    else if ("e" == s) { c2 = 14;}
+                    else if ("d" == s) { c2 = 13;}
+                    else if ("c" == s) { c2 = 12;}
+                    else if ("b" == s) { c2 = 11;}
+                    else if ("a" == s) { c2 = 10;}
+                    c += Number(c2);
+                    if (c >= 16) {
+                        c = 15;
+                    }
+
+                    if (c <= 8) {
+                        ++blackWhiteCount;
+                    }
+
+                    if (c == 15) {c = "f";}
+                    else if (c == 14) {c = "e";}
+                    else if (c == 13) {c = "d";}
+                    else if (c == 12) {c = "c";}
+                    else if (c == 11) {c = "b";}
+                    else if (c == 10) {c = "a";}
+                    mcolor += '' + c;
+                }
+
+                if ((x == -1 || x == 0) && y == 19 && z == 1) {
+                    if (blackWhiteCount == 6) {
+                        mcolor = "#ffffff";
+                    } else {
+                        mcolor = "#000000";
+                    }
+                }
+                if ((x == -2 || x == 1) && y == 21 && z == 1) {
+                    if (blackWhiteCount == 6) {
+                        mcolor = "#ffffff";
+                    } else {
+                        mcolor = "#000000";
+                    }
+                }
+
+
+                addVoxel({
+                    x: x,
+                    y: y,
+                    z: z,
+                    m: mcolor,
+                });
+                // render();
+
+                }
+                }
+                }
+
+
+                for (let x = -3; x < 6 - 3; ++x) {
+                for (let y = 6;  y < 18   ; ++y) {
+                for (let z = -2; z < 4 - 2; ++z) {
+
+                let mcolor = "#";
+                for (let i = 0; i < 6; ++i) {
+                    let c = Math.floor( Math.random() * 6 );
+                    let c2 = 0;
+
+                    let s = color.substr(i + 1,1);
+                    c2 = s;
+                    if      ("f" == s) { c2 = 15;}
+                    else if ("e" == s) { c2 = 14;}
+                    else if ("d" == s) { c2 = 13;}
+                    else if ("c" == s) { c2 = 12;}
+                    else if ("b" == s) { c2 = 11;}
+                    else if ("a" == s) { c2 = 10;}
+                    c += Number(c2);
+                    if (c >= 16) {
+                        c = 15;
+                    }
+                    if (c == 15) {c = "f";}
+                    else if (c == 14) {c = "e";}
+                    else if (c == 13) {c = "d";}
+                    else if (c == 12) {c = "c";}
+                    else if (c == 11) {c = "b";}
+                    else if (c == 10) {c = "a";}
+                    mcolor += '' + c;
+                }
+
+                addVoxel({
+                    x: x,
+                    y: y,
+                    z: z,
+                    m: mcolor,
+                });
+                // render();
+
+                }
+                }
+                }
+
+                for (let xx = 0; xx < 2; ++xx) {
+                for (let yy = 0; yy < 2; ++yy) {
+
+                
+                for (let x = xx * 12 - 9; x < 6 - 9 + xx * 12; ++x) {
+                for (let y = yy * 12;     y < 6     + yy * 12; ++y) {
+                for (let z = -2;         z < 4 - 2;          ++z) {
+
+                let mcolor = "#";
+                for (let i = 0; i < 6; ++i) {
+                    let c = Math.floor( Math.random() * 6 );
+                    let c2 = 0;
+
+                    let s = color.substr(i + 1,1);
+                    c2 = s;
+                    if      ("f" == s) { c2 = 15;}
+                    else if ("e" == s) { c2 = 14;}
+                    else if ("d" == s) { c2 = 13;}
+                    else if ("c" == s) { c2 = 12;}
+                    else if ("b" == s) { c2 = 11;}
+                    else if ("a" == s) { c2 = 10;}
+                    c += Number(c2);
+                    if (c >= 16) {
+                        c = 15;
+                    }
+                    if (c == 15) {c = "f";}
+                    else if (c == 14) {c = "e";}
+                    else if (c == 13) {c = "d";}
+                    else if (c == 12) {c = "c";}
+                    else if (c == 11) {c = "b";}
+                    else if (c == 10) {c = "a";}
+                    mcolor += '' + c;
+                }
+                addVoxel({
+                    x: x,
+                    y: y,
+                    z: z,
+                    m: mcolor,
+                });
+
+                }
+                }
+                }
+
+                }
+                }
+
+                render();
+
+            }
+            function sendMessage() {
+                socket.emit("sendMessage",
+                  {
+                      roomID: roomid,
+                      message: "<span style='color:" + document.getElementById("color1").value + "'>" + document.getElementById("message").value + "</span>",
+                  }
+                );
+                document.getElementById("message").value = "";
+            }
+            var message = [];
+            socket.on("recieveMessage", (data) => {
+                if (data.roomID == roomid) {
+                    let messgeUnit = "";
+                    message.push(data.message);
+                    let num = message.length;
+                    if (message.length > 20) {
+                        num = message.length - 20;
+                    } else {
+                        num = 0;
+                    }
+                    for (let i = message.length - 1; i >= num; --i) {
+                        messgeUnit += message[i] + "<br>";
+                    }
+                    document.getElementById("chat").innerHTML = messgeUnit;
+                }
+            });
+        </script>
+    </head>
+    <body>
+        <div id="buttons" style="position: absolute; left:10px; top:50px;"></div>
+        <button onclick="save();" style="position: absolute; left:100px; top:50px;">保存</button>
+        <input type="color" id="color1" value="#ff0000" style="position: absolute; left:150px; top:50px;">
+        <input type="color" id="color2" value="#aaaaaa" style="position: absolute; left:150px; top:130px;">
+        <!-- <button onclick="autoCreate();" style="position: absolute; left:100px; top:170px;">自動生成</button>
+        <button onclick="deleteAll();" style="position: absolute; left:180px; top:170px;">全部削除</button> -->
+
+        <button onclick="spoit();"      id="spoit"      style="position: absolute; left:120px; top:90px;">スポイト</button>
+        <button onclick="deletePut1();" id="deletePut1" style="position: absolute; left:210px; top:50px;">設置</button>
+        <button onclick="deletePut2();" id="deletePut2" style="position: absolute; left:210px; top:90px;">削除</button>
+        <input type="text" id="message" style="position: absolute; right:150px; top:20px; width:300px;">
+        <button onclick="sendMessage();" style="position: absolute; right:100px; top:20px;">送信</button>
+        <div id="chat" cols="50" rows="50" style="position: absolute; right:150px; top:50px; width:300px;">chat</div>
+        <!--
+        <textarea readonly id="chat" cols="50" rows="50" style="position: absolute; right:100px; top:50px;"></textarea>
+        -->
+    </body>
+</html>
