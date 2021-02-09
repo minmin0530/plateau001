@@ -1063,6 +1063,7 @@ function parseXML(response) {
       // 箱を作成
 
       const size = 50;
+      const materialXML = new THREE.MeshBasicMaterial( { color: 0xffffff } );
       for (const posList of posListArray) {
         for (let i = 0; i < posList.length; i += 3) {
             const x = ((posList[i + 0] * 100) % 3554) * 50000 - 6000;
@@ -1070,7 +1071,7 @@ function parseXML(response) {
             const z = ((posList[i + 1] * 100) % 13971) * 50000 - 20000;
             
             for (let j = 0; j < y / 50; j++) {
-                var voxel = new THREE.Mesh( cubeGeo, cubeMaterial[cubeMaterial.length - 1] );
+                var voxel = new THREE.Mesh( cubeGeo, materialXML );
                 voxel.position.set(
                     x - (x % 50) + 25,
                     j * 50 + 25,
