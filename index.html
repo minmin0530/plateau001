@@ -1066,11 +1066,12 @@ function parseXML(response) {
       const materialXML = new THREE.MeshBasicMaterial( { color: 0xffffff } );
       for (const posList of posListArray) {
         for (let i = 0; i < posList.length; i += 3) {
-            const x = ((posList[i + 0] * 100) % 3554) * 50000 - 6000;
-            const y = (posList[i + 2] * 20) - 100;
-            const z = ((posList[i + 1] * 100) % 13971) * 50000 - 20000;
+            const x = ((posList[i + 0] * 100) % 3573) * 50000 - 33000;
+            const y = (posList[i + 2] * 20)- 100;
+            const z = ((posList[i + 1] * 100) % 13981) * 50000 - 30500;
             
-            for (let j = 0; j < y / 50; j++) {
+            for (let j = 0; j < y/50; j++) {
+                if (y > 100) {
                 var voxel = new THREE.Mesh( cubeGeo, materialXML );
                 voxel.position.set(
                     x - (x % 50) + 25,
@@ -1094,7 +1095,7 @@ function parseXML(response) {
 
 
 
-
+                }
 
 
 
@@ -1116,6 +1117,43 @@ function parseXML(response) {
             }
         }
       }
+
+
+            const x = 0
+            const y = 4000;
+            const z = 0;
+            
+            for (let j = 0; j < y/50; j++) {
+                if (y > 0) {
+                var voxel = new THREE.Mesh( cubeGeo, materialXML );
+                voxel.position.set(
+                    x - (x % 50) + 25,
+                    j * 50 + 25,
+                    z - (z % 50) + 25
+                );
+                voxel.position.divideScalar( 50 ).floor().multiplyScalar( 50 ).addScalar( 25 );
+                scene.add( voxel );
+                // var edges = new THREE.EdgesGeometory(voxel, 0x000000);
+                var edges = new THREE.EdgesGeometry(cubeGeo);
+                lineBox.push( new THREE.LineSegments( edges, new THREE.LineBasicMaterial({ color: 0x000000 })) );
+                lineBox[lineBox.length - 1].position.set(
+                    x - (x % 50) + 25,
+                    j * 50 + 25,
+                    z - (z % 50) + 25
+                );
+                lineBox[lineBox.length - 1].position.divideScalar( 50 ).floor().multiplyScalar( 50 ).addScalar( 25 );						
+                scene.add(lineBox[lineBox.length - 1]);
+
+                objects.push( voxel );
+
+
+
+                }
+
+
+            }
+
+
 
     });
 }
@@ -1245,17 +1283,6 @@ for (const l of lineBox) {
 				scene.add( plane );
 
 				objects.push( plane );
-
-                const loader = new THREE.TextureLoader();
-                const texture = loader.load('./assets/img/map.png');
-                // マテリアルにテクスチャーを設定
-                const texmaterial = new THREE.MeshStandardMaterial({
-                    map: texture
-                });
-
-                planeMap = new THREE.Mesh( geometry, texmaterial );
-                planeMap.position.y = -1.0;
-				scene.add( planeMap );
 
 				// lights
 
@@ -1542,8 +1569,8 @@ console.log(data.room);
         }
 
 
-        const xx = (indexChara - 1) * 50 * 128;
-        const zz = (indexChara - 1) * 50 * 128;
+        const xx = (indexChara - 1) * 50 * 128 + 500;
+        const zz = (indexChara - 1) * 50 * 128 + 500;
 
         for (const v of re.voxel) {
             const geometry = new THREE.BoxGeometry(50, 50, 50, 2, 2, 2);
@@ -1987,17 +2014,18 @@ document.getElementById("color1").value = "#" + intersect.object.material.color.
             });
         </script>
     </head>
-    <body>
-        <div id="buttons" style="position: absolute; left:10px; top:50px;"></div>
-        <button onclick="save();" style="position: absolute; left:100px; top:50px;">保存</button>
-        <input type="color" id="color1" value="#ff0000" style="position: absolute; left:150px; top:50px;">
-        <input type="color" id="color2" value="#aaaaaa" style="position: absolute; left:150px; top:130px;">
+    <body style="margin: 0;">
+        <h1 style="position: absolute; left: 10px; top:0px;">墨田区墨田五丁目　<span style="color:red;">shift + クリックで設置</span></h1>
+        <div id="buttons" style="position: absolute; left:10px; top:100px;"></div>
+        <button onclick="save();" style="position: absolute; left:100px; top:100px;">保存</button>
+        <input type="color" id="color1" value="#ff0000" style="position: absolute; left:150px; top:100px;">
+        <input type="color" id="color2" value="#aaaaaa" style="position: absolute; left:150px; top:180px;">
         <!-- <button onclick="autoCreate();" style="position: absolute; left:100px; top:170px;">自動生成</button>
         <button onclick="deleteAll();" style="position: absolute; left:180px; top:170px;">全部削除</button> -->
 
-        <button onclick="spoit();"      id="spoit"      style="position: absolute; left:120px; top:90px;">スポイト</button>
-        <button onclick="deletePut1();" id="deletePut1" style="position: absolute; left:210px; top:50px;">設置</button>
-        <button onclick="deletePut2();" id="deletePut2" style="position: absolute; left:210px; top:90px;">削除</button>
+        <button onclick="spoit();"      id="spoit"      style="position: absolute; left:120px; top:140px;">スポイト</button>
+        <button onclick="deletePut1();" id="deletePut1" style="position: absolute; left:210px; top:100px;">設置</button>
+        <button onclick="deletePut2();" id="deletePut2" style="position: absolute; left:210px; top:140px;">削除</button>
         <input type="text" id="message" style="position: absolute; right:150px; top:20px; width:300px;">
         <button onclick="sendMessage();" style="position: absolute; right:100px; top:20px;">送信</button>
         <div id="chat" cols="50" rows="50" style="position: absolute; right:150px; top:50px; width:300px;">chat</div>
