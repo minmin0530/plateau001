@@ -170,8 +170,8 @@ console.log(data.message);
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
-app.get("/assets/img/map.png", (request, response) => {
-  response.sendFile(__dirname + "/assets/img/map.png");
+app.get("/assets/img/sumida.png", (request, response) => {
+  response.sendFile(__dirname + "/assets/img/sumida.png");
 });
 app.get("/charanum", (request, response) => {
   //  const xmlData = fs.readFileSync( __dirname + "/assets/bldg/53392546_bldg_6697.gml","utf-8" );

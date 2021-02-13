@@ -1284,6 +1284,19 @@ for (const l of lineBox) {
 
 				objects.push( plane );
 
+
+
+                const loader = new THREE.TextureLoader();
+                const texture = loader.load('assets/img/sumida.png');
+                // マテリアルにテクスチャーを設定
+                const material = new THREE.MeshStandardMaterial({
+                map: texture
+                });
+				planemap = new THREE.Mesh( geometry, material );
+				scene.add( planemap );
+
+
+
 				// lights
 
 				var ambientLight = new THREE.AmbientLight( 0x606060 );
