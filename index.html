@@ -1066,9 +1066,9 @@ function parseXML(response) {
       const materialXML = new THREE.MeshBasicMaterial( { color: 0xffffff } );
       for (const posList of posListArray) {
         for (let i = 0; i < posList.length; i += 3) {
-            const x = ((posList[i + 0] * 100) % 3573) * 50000 - 33000;
+            const x = ((posList[i + 0] * 100) % 3570) * 50000 - 63000;
             const y = (posList[i + 2] * 20)- 100;
-            const z = ((posList[i + 1] * 100) % 13981) * 50000 - 30500;
+            const z = ((posList[i + 1] * 100) % 13981) * 50000 - 0;
             
             for (let j = 0; j < y/50; j++) {
                 if (y > 100) {
