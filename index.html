@@ -1056,8 +1056,8 @@ function parseXML(response) {
         for (let j = 0; j < stringContainingXMLSource.length; j++) {
         for (let i = 0; i < stringContainingXMLSource[j]['core:CityModel']['core:cityObjectMember'].length; i++) {
 //            console.log(j + ";" + i);
-            // if (i != 236 && i != 296 && i != 711 && i != 756) {
-            if (i != 91 && i != 142 && i != 268 && i != 408 && i != 493 && i != 535 && i != 575 && i != 588 && i != 594 && i != 716 && i != 791 && i != 826 && i != 869) {
+            if (i != 236 && i != 296 && i != 711 && i != 756) {
+            // if (i != 91 && i != 142 && i != 268 && i != 408 && i != 493 && i != 535 && i != 575 && i != 588 && i != 594 && i != 716 && i != 791 && i != 826 && i != 869) {
 
             posListArray.push(stringContainingXMLSource[j]['core:CityModel']['core:cityObjectMember'][i]['bldg:Building'][0]['bldg:lod0RoofEdge'][0]['gml:MultiSurface'][0]['gml:surfaceMember'][0]['gml:Polygon'][0]['gml:exterior'][0]['gml:LinearRing'][0]['gml:posList'][0].split(' '));
             }
@@ -1071,12 +1071,12 @@ function parseXML(response) {
       const materialXML = new THREE.MeshBasicMaterial( { color: 0xffffff } );
       for (const posList of posListArray) {
         for (let i = 0; i < posList.length; i += 3) {
-            const x = ((posList[i + 0] * 100) % 3565) * 50000 - 63000;
+            const x = ((posList[i + 0] * 100) % 3565) * 50000 - 20000;
             const y = (posList[i + 2] * 20)- 100;
             const z = ((posList[i + 1] * 100) % 13974) * 50000 - 20000;
             
             for (let j = 0; j < y/50; j++) {
-                if (y > 1000) {
+                if (y > 700) {
                 var voxel = new THREE.Mesh( cubeGeo, materialXML );
                 voxel.position.set(
                     x - (x % 50) + 25,
