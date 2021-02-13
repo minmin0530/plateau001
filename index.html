@@ -1119,9 +1119,13 @@ function parseXML(response) {
       }
 
 
-            const x = 0
+            const x = ((35.71005 * 100) % 3570) * 50000 - 63000;
             const y = 4000;
-            const z = 0;
+            const z = ((139.81068 * 100) % 13981) * 50000 - 0;
+
+            // const x = 0
+            // const y = 4000;
+            // const z = 0;
             
             for (let j = 0; j < y/50; j++) {
                 if (y > 0) {
@@ -1330,13 +1334,37 @@ for (const l of lineBox) {
 
                     let count = 0;
                     for (const d of data) {
+                        let button = document.createElement("button");
+                        button.innerHTML = d;
+                        button.style.position = "absolute";
+                        button.style.left = (count * 300) + "px";
+                        button.onclick = () => {
                             fetch("/api" + d).then(checkStatus)
                             .then(parseXML)
                             .catch((error) => {
                             console.log('request failed', error)
                             });
 
+                        }
+                        count += 1;
+                        document.body.appendChild(button);
+                        // count++;
+                        // if (count > 20) {
+                        //     break;
+                        // }
                     }
+
+
+
+                    // let count = 0;
+                    // for (const d of data) {
+                    //         fetch("/api" + d).then(checkStatus)
+                    //         .then(parseXML)
+                    //         .catch((error) => {
+                    //         console.log('request failed', error)
+                    //         });
+
+                    // }
                 });
 
                 fetch("/charanum").then( (response) => response.json() ).then( (data) => {
@@ -2028,7 +2056,7 @@ document.getElementById("color1").value = "#" + intersect.object.material.color.
         </script>
     </head>
     <body style="margin: 0;">
-        <h1 style="position: absolute; left: 10px; top:0px;">墨田区墨田五丁目　<span style="color:red;">shift + クリックで設置</span></h1>
+        <!-- <h1 style="position: absolute; left: 10px; top:0px;">墨田区墨田五丁目　<span style="color:red;">shift + クリックで設置</span></h1> -->
         <div id="buttons" style="position: absolute; left:10px; top:100px;"></div>
         <button onclick="save();" style="position: absolute; left:100px; top:100px;">保存</button>
         <input type="color" id="color1" value="#ff0000" style="position: absolute; left:150px; top:100px;">
